@@ -1,6 +1,6 @@
 <template lang="pug">
 .c-talk-detail
-	detail-back-nav
+	detail-back-nav(hide-back)
 		detail-top-actions(
 			:export-options="talkExportOptions",
 			:qrcodes-url="talkQrcodesUrl",
@@ -131,40 +131,49 @@
 </template>
 
 <script>
-import moment from 'moment-timezone'
-import { getLocalizedString, getIconByFileEnding, computeTalkExporters, buildExportMenuItems, parseBooleanAnswer, resolveAbsoluteUrl, buildQrcodesUrl, getVideoEmbedUrl } from '../utils'
-import MarkdownContent from './MarkdownContent.vue'
-import DetailBackNav from './DetailBackNav.vue'
-import DetailTopActions from './DetailTopActions.vue'
+import moment from "moment-timezone";
+import {
+	getLocalizedString,
+	getIconByFileEnding,
+	computeTalkExporters,
+	buildExportMenuItems,
+	parseBooleanAnswer,
+	resolveAbsoluteUrl,
+	buildQrcodesUrl,
+	getVideoEmbedUrl,
+} from "../utils";
+import MarkdownContent from "./MarkdownContent.vue";
+import DetailBackNav from "./DetailBackNav.vue";
+import DetailTopActions from "./DetailTopActions.vue";
 
 export default {
-	name: 'TalkDetail',
+	name: "TalkDetail",
 	components: { MarkdownContent, DetailBackNav, DetailTopActions },
 	inject: {
 		scheduleData: { default: null },
 		scheduleFav: {
 			default() {
-				return () => {}
-			}
+				return () => {};
+			},
 		},
 		scheduleUnfav: {
 			default() {
-				return () => {}
-			}
+				return () => {};
+			},
 		},
 		generateSpeakerLinkUrl: {
 			default() {
-				return ({speaker}) => `#speakers/${speaker.code}`
-			}
+				return ({ speaker }) => `#speakers/${speaker.code}`;
+			},
 		},
 		onSpeakerLinkClick: {
 			default() {
-				return () => {}
-			}
+				return () => {};
+			},
 		},
 		showJoinRoom: { default: false },
-		getJoinRoomLink: { default: () => () => '' },
-		generateStarrerLinkUrl: { default: () => (user) => user.url || '' },
+		getJoinRoomLink: { default: () => () => "" },
+		generateStarrerLinkUrl: { default: () => (user) => user.url || "" },
 		onStarrerLinkClick: { default: () => () => {} },
 		favsReadOnly: { default: false },
 		translationMessages: { default: () => ({}) },
@@ -177,14 +186,14 @@ export default {
 		talkId: String,
 		baseUrl: {
 			type: String,
-			default: ''
+			default: "",
 		},
 		apiContent: {
 			type: Object,
-			default: null
-		}
+			default: null,
+		},
 	},
-	emits: ['joinRoom'],
+	emits: ["joinRoom"],
 	data() {
 		return {
 			getLocalizedString,
@@ -196,353 +205,434 @@ export default {
 			fetchedApiContent: null,
 			fetchedSubmission: null,
 			apiContentLoaded: false,
-		}
+		};
 	},
 	computed: {
 		talkQrcodesUrl() {
-			const code = this.resolvedTalk?.code || this.resolvedTalk?.id || this.talkId
-			return buildQrcodesUrl(this.baseUrl, 'talk', code)
+			const code =
+				this.resolvedTalk?.code || this.resolvedTalk?.id || this.talkId;
+			return buildQrcodesUrl(this.baseUrl, "talk", code);
 		},
 		t() {
-			const m = this.translationMessages || {}
+			const m = this.translationMessages || {};
 			return {
-				join_room: m.join_room || 'Join room',
-				speaker_name_not_provided: m.speaker_name_not_provided || 'Speaker name not provided',
-				downloads: m.downloads || 'Downloads',
-				speakers: m.speakers || 'Speakers',
-				view_video: m.view_video || 'View Video',
-				starred_by: m.starred_by || 'Starred by',
-				anonymous_attendee: m.anonymous_attendee || 'Anonymous (name not shared)',
-				view_all: m.view_all || 'View all',
-				hide_list: m.hide_list || 'Hide',
-				session_language: m.session_language || 'Language',
-				yes: m.yes || 'Yes',
-				no: m.no || 'No',
-			}
+				join_room: m.join_room || "Join room",
+				speaker_name_not_provided:
+					m.speaker_name_not_provided || "Speaker name not provided",
+				downloads: m.downloads || "Downloads",
+				speakers: m.speakers || "Speakers",
+				view_video: m.view_video || "View Video",
+				starred_by: m.starred_by || "Starred by",
+				anonymous_attendee:
+					m.anonymous_attendee || "Anonymous (name not shared)",
+				view_all: m.view_all || "View all",
+				hide_list: m.hide_list || "Hide",
+				session_language: m.session_language || "Language",
+				yes: m.yes || "Yes",
+				no: m.no || "No",
+			};
 		},
-		uiLocale () {
-			if (typeof document === 'undefined') return 'en'
-			return (document.documentElement.lang || 'en').trim().split(',')[0] || 'en'
+		uiLocale() {
+			if (typeof document === "undefined") return "en";
+			return (
+				(document.documentElement.lang || "en").trim().split(",")[0] || "en"
+			);
 		},
-		sessionLanguageLabel () {
-			const code = this.resolvedTalk?.content_locale
-			if (!code || typeof code !== 'string') return ''
-			const tag = code.replace(/_/g, '-')
+		sessionLanguageLabel() {
+			const code = this.resolvedTalk?.content_locale;
+			if (!code || typeof code !== "string") return "";
+			const tag = code.replace(/_/g, "-");
 			try {
-				return new Intl.DisplayNames([this.uiLocale], { type: 'language' }).of(tag) || code
+				return (
+					new Intl.DisplayNames([this.uiLocale], { type: "language" }).of(
+						tag,
+					) || code
+				);
 			} catch {
 				try {
-					const primary = tag.split('-')[0] || tag
-					return new Intl.DisplayNames([this.uiLocale], { type: 'language' }).of(primary) || code
+					const primary = tag.split("-")[0] || tag;
+					return (
+						new Intl.DisplayNames([this.uiLocale], { type: "language" }).of(
+							primary,
+						) || code
+					);
 				} catch {
-					return code
+					return code;
 				}
 			}
 		},
 		inlineStarrersLimit() {
-			return 15
+			return 15;
 		},
 		starrersInlineItems() {
-			const items = this.starrers?.items || []
-			return items.slice(0, this.inlineStarrersLimit)
+			const items = this.starrers?.items || [];
+			return items.slice(0, this.inlineStarrersLimit);
 		},
 		starrersOverflowCount() {
-			if (this.starrersExpanded) return 0
-			const total = this.starrers?.total || 0
-			return Math.max(0, total - this.starrersInlineItems.length)
+			if (this.starrersExpanded) return 0;
+			const total = this.starrers?.total || 0;
+			return Math.max(0, total - this.starrersInlineItems.length);
 		},
 		popularityFeatureEnabled() {
-			return !!this.scheduleData?.schedule?.feature_flags?.session_popularity_enabled
+			return !!this.scheduleData?.schedule?.feature_flags
+				?.session_popularity_enabled;
 		},
 		resolvedTalk() {
-			if (this.talk) return this.talk
+			if (this.talk) return this.talk;
 			if (this.talkId && this.scheduleData) {
-				const lu = this.scheduleData.sessionsLookup
-				if (lu && lu[this.talkId]) return lu[this.talkId]
-				const sessions = this.scheduleData.sessions || []
+				const lu = this.scheduleData.sessionsLookup;
+				if (lu && lu[this.talkId]) return lu[this.talkId];
+				const sessions = this.scheduleData.sessions || [];
 				for (let i = 0; i < sessions.length; i++) {
-					if (sessions[i].code === this.talkId || sessions[i].id === this.talkId) return sessions[i]
+					if (
+						sessions[i].code === this.talkId ||
+						sessions[i].id === this.talkId
+					)
+						return sessions[i];
 				}
-				return null
+				return null;
 			}
-			if (this.fetchedSubmission) return this.fetchedSubmission
-			return null
+			if (this.fetchedSubmission) return this.fetchedSubmission;
+			return null;
 		},
 		computedJoinRoomLink() {
-			if (!this.resolvedTalk) return ''
-			return this.getJoinRoomLink(this.resolvedTalk) || ''
+			if (!this.resolvedTalk) return "";
+			return this.getJoinRoomLink(this.resolvedTalk) || "";
 		},
 		isFaved() {
-			if (!this.resolvedTalk) return false
-			const favSet = this.scheduleData?.favSet
-			const favId = this.resolvedTalk.code || this.resolvedTalk.id || this.talkId
-			if (favSet && typeof favSet.has === 'function') return favSet.has(favId)
-			const favs = this.scheduleData?.favs || []
-			return favs.includes(favId)
+			if (!this.resolvedTalk) return false;
+			const favSet = this.scheduleData?.favSet;
+			const favId =
+				this.resolvedTalk.code || this.resolvedTalk.id || this.talkId;
+			if (favSet && typeof favSet.has === "function") return favSet.has(favId);
+			const favs = this.scheduleData?.favs || [];
+			return favs.includes(favId);
 		},
 		datetime() {
-			if (!this.resolvedTalk || this.isSchedulePending) return ''
-			return moment(this.resolvedTalk.start).format('L LT') + ' - ' + moment(this.resolvedTalk.end).format('LT')
+			if (!this.resolvedTalk || this.isSchedulePending) return "";
+			return (
+				moment(this.resolvedTalk.start).format("L LT") +
+				" - " +
+				moment(this.resolvedTalk.end).format("LT")
+			);
 		},
-		isSchedulePending () {
-			return Boolean(this.resolvedTalk?.schedule_pending || !this.resolvedTalk?.start)
+		isSchedulePending() {
+			return Boolean(
+				this.resolvedTalk?.schedule_pending || !this.resolvedTalk?.start,
+			);
 		},
-		schedulePendingText () {
-			const m = this.translationMessages || {}
-			return m.schedule_pending_secondary || 'Coming soon'
+		schedulePendingText() {
+			const m = this.translationMessages || {};
+			return m.schedule_pending_secondary || "Coming soon";
 		},
-		sessionTimeLabel () {
-			if (this.isSchedulePending) return this.schedulePendingText
-			const parts = [this.datetime, this.roomName].filter(Boolean)
-			return parts.join(' ')
+		sessionTimeLabel() {
+			if (this.isSchedulePending) return this.schedulePendingText;
+			const parts = [this.datetime, this.roomName].filter(Boolean);
+			return parts.join(" ");
 		},
 		roomName() {
-			if (!this.resolvedTalk) return ''
-			const room = this.resolvedTalk.room
-			if (!room) return ''
-			if (typeof room === 'string') return room
-			return getLocalizedString(room.name || room)
+			if (!this.resolvedTalk) return "";
+			const room = this.resolvedTalk.room;
+			if (!room) return "";
+			if (typeof room === "string") return room;
+			return getLocalizedString(room.name || room);
 		},
 		isLive() {
-			const now = this.scheduleData?.now
-			if (!now || !this.resolvedTalk) return false
-			return this.resolvedTalk.start < now && this.resolvedTalk.end > now
+			const now = this.scheduleData?.now;
+			if (!now || !this.resolvedTalk) return false;
+			return this.resolvedTalk.start < now && this.resolvedTalk.end > now;
 		},
 		effectiveApiContent() {
-			return this.apiContent || this.fetchedApiContent
+			return this.apiContent || this.fetchedApiContent;
 		},
 		talkDetailReady() {
-			return this.resolvedTalk && (this.effectiveApiContent || this.apiContentLoaded || !this.computedApiBaseUrl)
+			return (
+				this.resolvedTalk &&
+				(this.effectiveApiContent ||
+					this.apiContentLoaded ||
+					!this.computedApiBaseUrl)
+			);
 		},
 		computedApiBaseUrl() {
-			if (this.remoteApiUrl) return this.remoteApiUrl
-			if (!this.baseUrl) return null
+			if (this.remoteApiUrl) return this.remoteApiUrl;
+			if (!this.baseUrl) return null;
 			try {
-				const url = new URL(this.baseUrl, window.location.origin)
-				const segments = url.pathname.split('/').filter(s => s.length > 0)
-				const slug = segments[segments.length - 1] || ''
-				return `${url.origin}/api/v1/events/${slug}/`
+				const url = new URL(this.baseUrl, window.location.origin);
+				const segments = url.pathname.split("/").filter((s) => s.length > 0);
+				const slug = segments[segments.length - 1] || "";
+				return `${url.origin}/api/v1/events/${slug}/`;
 			} catch {
-				return null
+				return null;
 			}
 		},
 		longAnswers() {
-			const answers = this.effectiveApiContent?.answers
-			if (!Array.isArray(answers)) return []
-			return answers.filter(a => a.question && a.question.is_public !== false &&
-				(a.question.variant === 'text' || a.question.variant === 'string'))
+			const answers = this.effectiveApiContent?.answers;
+			if (!Array.isArray(answers)) return [];
+			return answers.filter(
+				(a) =>
+					a.question &&
+					a.question.is_public !== false &&
+					(a.question.variant === "text" || a.question.variant === "string"),
+			);
 		},
 		videoAnswers() {
-			const answers = this.effectiveApiContent?.answers
-			if (!Array.isArray(answers)) return []
+			const answers = this.effectiveApiContent?.answers;
+			if (!Array.isArray(answers)) return [];
 			return this.expandVideoAnswers(
-				answers.filter(a => a.question && a.question.is_public !== false &&
-					a.question.variant === 'video')
-			)
+				answers.filter(
+					(a) =>
+						a.question &&
+						a.question.is_public !== false &&
+						a.question.variant === "video",
+				),
+			);
 		},
 		inlineAnswers() {
-			const answers = this.effectiveApiContent?.answers
-			if (!Array.isArray(answers)) return []
-			return answers.filter(a => {
-				if (!a.question || a.question.is_public === false) return false
-				if (a.question.variant === 'text' || a.question.variant === 'string') return false
+			const answers = this.effectiveApiContent?.answers;
+			if (!Array.isArray(answers)) return [];
+			return answers.filter((a) => {
+				if (!a.question || a.question.is_public === false) return false;
+				if (a.question.variant === "text" || a.question.variant === "string")
+					return false;
 				// Embeddable video-link answers are shown as players above
-				if (a.question.variant === 'video' && this.expandVideoAnswers([a]).length) return false
-				return true
-			})
+				if (
+					a.question.variant === "video" &&
+					this.expandVideoAnswers([a]).length
+				)
+					return false;
+				return true;
+			});
 		},
 		publicScheduleAnswers() {
-			if (this.effectiveApiContent?.answers?.length) return []
-			const answers = this.resolvedTalk?.answers || []
-			if (!this.resolvedTalk?.resources?.length && !this.displayResources.length) return answers
+			if (this.effectiveApiContent?.answers?.length) return [];
+			const answers = this.resolvedTalk?.answers || [];
+			if (
+				!this.resolvedTalk?.resources?.length &&
+				!this.displayResources.length
+			)
+				return answers;
 
-			const downloadsLabel = (this.t.downloads || '').trim().toLowerCase()
-			return answers.filter((answer) => (answer.question || '').trim().toLowerCase() !== downloadsLabel)
+			const downloadsLabel = (this.t.downloads || "").trim().toLowerCase();
+			return answers.filter(
+				(answer) =>
+					(answer.question || "").trim().toLowerCase() !== downloadsLabel,
+			);
 		},
 		publicVideoScheduleAnswers() {
-			return this.publicScheduleAnswers.filter((answer) => answer.variant === 'video')
+			return this.publicScheduleAnswers.filter(
+				(answer) => answer.variant === "video",
+			);
 		},
 		publicOtherScheduleAnswers() {
-			return this.publicScheduleAnswers.filter((answer) => answer.variant !== 'video')
+			return this.publicScheduleAnswers.filter(
+				(answer) => answer.variant !== "video",
+			);
 		},
 		displayResources() {
-			const resources = this.effectiveApiContent?.resources ?? this.resolvedTalk?.resources ?? []
-			return resources.map(r => {
-				const resPath = r.resource || r.link
+			const resources =
+				this.effectiveApiContent?.resources ??
+				this.resolvedTalk?.resources ??
+				[];
+			return resources.map((r) => {
+				const resPath = r.resource || r.link;
 				if (resPath) {
-					const cleanPath = resPath.split(/[?#]/)[0]
-					if (cleanPath.toLowerCase().endsWith('.pdf') && !resPath.includes('#')) {
+					const cleanPath = resPath.split(/[?#]/)[0];
+					if (
+						cleanPath.toLowerCase().endsWith(".pdf") &&
+						!resPath.includes("#")
+					) {
 						return {
 							...r,
 							resource: r.resource ? `${r.resource}#resource` : undefined,
-							link: r.link ? `${r.link}#resource` : undefined
-						}
+							link: r.link ? `${r.link}#resource` : undefined,
+						};
 					}
 				}
-				return r
-			})
+				return r;
+			});
 		},
 		talkExportOptions() {
-			if (this.exportsDisabled || this.isSchedulePending) return []
-			const code = this.resolvedTalk?.code || this.resolvedTalk?.id || this.talkId
-			const exporters = this.resolvedTalk?.exporters ||
-				(this.baseUrl && code ? computeTalkExporters(this.baseUrl, code) : null)
-			return buildExportMenuItems(exporters)
-		}
+			if (this.exportsDisabled || this.isSchedulePending) return [];
+			const code =
+				this.resolvedTalk?.code || this.resolvedTalk?.id || this.talkId;
+			const exporters =
+				this.resolvedTalk?.exporters ||
+				(this.baseUrl && code
+					? computeTalkExporters(this.baseUrl, code)
+					: null);
+			return buildExportMenuItems(exporters);
+		},
 	},
 	watch: {
 		talkId: {
 			handler() {
-				this.fetchedApiContent = null
-				this.fetchedSubmission = null
-				this.apiContentLoaded = false
-			}
+				this.fetchedApiContent = null;
+				this.fetchedSubmission = null;
+				this.apiContentLoaded = false;
+			},
 		},
 		resolvedTalk: {
 			handler() {
-				this.starrersExpanded = false
-				this.loadStarrers({ limit: this.inlineStarrersLimit })
-				if (!this.apiContent) this.fetchApiContent()
+				this.starrersExpanded = false;
+				this.loadStarrers({ limit: this.inlineStarrersLimit });
+				if (!this.apiContent) this.fetchApiContent();
 			},
-			immediate: true
-		}
+			immediate: true,
+		},
 	},
 	methods: {
 		expandVideoAnswers(answers) {
-			const result = []
+			const result = [];
 			for (const answer of answers || []) {
-				const raw = answer?.answer || ''
-				const lines = String(raw).split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+				const raw = answer?.answer || "";
+				const lines = String(raw)
+					.split(/\r?\n/)
+					.map((line) => line.trim())
+					.filter(Boolean);
 				if (lines.length <= 1) {
-					if (this.videoEmbedSrc(answer)) result.push(answer)
-					continue
+					if (this.videoEmbedSrc(answer)) result.push(answer);
+					continue;
 				}
 				for (const line of lines) {
-					const embedUrl = getVideoEmbedUrl(line)
+					const embedUrl = getVideoEmbedUrl(line);
 					if (embedUrl) {
-						result.push({ ...answer, answer: line, embed_url: embedUrl })
+						result.push({ ...answer, answer: line, embed_url: embedUrl });
 					}
 				}
 			}
-			return result
+			return result;
 		},
 		videoEmbedSrc(answer) {
-			if (!answer) return ''
-			if (answer.embed_url) return answer.embed_url
-			return getVideoEmbedUrl(answer.answer)
+			if (!answer) return "";
+			if (answer.embed_url) return answer.embed_url;
+			return getVideoEmbedUrl(answer.answer);
 		},
 		starrerTitle(user) {
-			if (!user || !user.url) return this.t.anonymous_attendee
-			return user.name || this.t.anonymous_attendee
+			if (!user || !user.url) return this.t.anonymous_attendee;
+			return user.name || this.t.anonymous_attendee;
 		},
 		starrerUrl(user) {
-			if (!user) return ''
-			return this.generateStarrerLinkUrl(user) || user.url || ''
+			if (!user) return "";
+			return this.generateStarrerLinkUrl(user) || user.url || "";
 		},
 		onStarrerClick(event, user) {
-			this.onStarrerLinkClick(event, user)
+			this.onStarrerLinkClick(event, user);
 		},
 		getStarrersUrl({ limit } = {}) {
-			const code = this.resolvedTalk?.code || this.resolvedTalk?.id || this.talkId
-			if (!this.baseUrl || !code) return ''
+			const code =
+				this.resolvedTalk?.code || this.resolvedTalk?.id || this.talkId;
+			if (!this.baseUrl || !code) return "";
 			try {
-				const url = new URL(`talk/${code}/starrers.json`, this.baseUrl)
-				if (typeof limit === 'number') url.searchParams.set('limit', String(limit))
-				return url.href
+				const url = new URL(`talk/${code}/starrers.json`, this.baseUrl);
+				if (typeof limit === "number")
+					url.searchParams.set("limit", String(limit));
+				return url.href;
 			} catch {
-				const base = this.baseUrl.replace(/\/$/, '')
-				if (typeof limit !== 'number') return `${base}/talk/${code}/starrers.json`
-				return `${base}/talk/${code}/starrers.json?limit=${encodeURIComponent(String(limit))}`
+				const base = this.baseUrl.replace(/\/$/, "");
+				if (typeof limit !== "number")
+					return `${base}/talk/${code}/starrers.json`;
+				return `${base}/talk/${code}/starrers.json?limit=${encodeURIComponent(String(limit))}`;
 			}
 		},
 		async loadStarrers({ limit } = {}) {
-			if (!this.popularityFeatureEnabled) return
-			const url = this.getStarrersUrl({ limit })
-			if (!url) return
-			this.starrersLoading = true
+			if (!this.popularityFeatureEnabled) return;
+			const url = this.getStarrersUrl({ limit });
+			if (!url) return;
+			this.starrersLoading = true;
 			try {
-				const response = await fetch(url)
-				if (!response.ok) return
-				const data = await response.json()
-				if (!data || typeof data !== 'object') return
-				const items = Array.isArray(data.items) ? data.items : []
+				const response = await fetch(url);
+				if (!response.ok) return;
+				const data = await response.json();
+				if (!data || typeof data !== "object") return;
+				const items = Array.isArray(data.items) ? data.items : [];
 				this.starrers = {
 					total: Number.isFinite(data.total) ? data.total : 0,
-					public_total: Number.isFinite(data.public_total) ? data.public_total : 0,
-					items: items.filter(u => u && typeof u === 'object' && u.code)
-				}
+					public_total: Number.isFinite(data.public_total)
+						? data.public_total
+						: 0,
+					items: items.filter((u) => u && typeof u === "object" && u.code),
+				};
 			} catch {
 				// ignore
 			} finally {
-				this.starrersLoading = false
+				this.starrersLoading = false;
 			}
 		},
 		async toggleStarrersExpanded() {
-			this.starrersExpanded = !this.starrersExpanded
-			if (!this.starrersExpanded) return
+			this.starrersExpanded = !this.starrersExpanded;
+			if (!this.starrersExpanded) return;
 			if ((this.starrers?.items || []).length < (this.starrers?.total || 0)) {
-				await this.loadStarrers({ limit: 0 })
+				await this.loadStarrers({ limit: 0 });
 			}
 		},
 		getAbsoluteResourceUrl(resource) {
-			return resolveAbsoluteUrl(resource, this.baseUrl)
+			return resolveAbsoluteUrl(resource, this.baseUrl);
 		},
 		getFileExtensionLabel(path) {
-			if (!path) return 'Resource'
+			if (!path) return "Resource";
 			if (/^https?:\/\//i.test(path) && !/\.[a-z0-9]+$/i.test(path)) {
-				return 'External Link'
+				return "External Link";
 			}
-			const parts = path.split(/[#?]/)[0].split('.')
-			if (parts.length < 2) return 'Resource'
-			const ext = parts[parts.length - 1].toUpperCase()
-			return `${ext} Document`
+			const parts = path.split(/[#?]/)[0].split(".");
+			if (parts.length < 2) return "Resource";
+			const ext = parts[parts.length - 1].toUpperCase();
+			return `${ext} Document`;
 		},
 		getSpeakerLink(speaker) {
-			return this.generateSpeakerLinkUrl({speaker})
+			return this.generateSpeakerLinkUrl({ speaker });
 		},
 		onSpeakerClick(event, speaker) {
-			this.onSpeakerLinkClick(event, speaker)
+			this.onSpeakerLinkClick(event, speaker);
 		},
 		onJoinRoomClick(event) {
-			this.$emit('joinRoom', event)
+			this.$emit("joinRoom", event);
 		},
 		async toggleFav() {
-			if (this.favsReadOnly) return
-			if (!this.resolvedTalk) return
-			const favId = this.resolvedTalk.code || this.resolvedTalk.id || this.talkId
+			if (this.favsReadOnly) return;
+			if (!this.resolvedTalk) return;
+			const favId =
+				this.resolvedTalk.code || this.resolvedTalk.id || this.talkId;
 			if (this.isFaved) {
-				await this.scheduleUnfav(favId)
+				await this.scheduleUnfav(favId);
 			} else {
-				await this.scheduleFav(favId)
+				await this.scheduleFav(favId);
 			}
-			await this.loadStarrers({ limit: this.starrersExpanded ? 0 : this.inlineStarrersLimit })
+			await this.loadStarrers({
+				limit: this.starrersExpanded ? 0 : this.inlineStarrersLimit,
+			});
 		},
 		async fetchApiContent() {
-			if (this.apiContent || this.fetchedApiContent !== null || this.apiContentLoaded) return
+			if (
+				this.apiContent ||
+				this.fetchedApiContent !== null ||
+				this.apiContentLoaded
+			)
+				return;
 			if (!this.computedApiBaseUrl) {
-				this.apiContentLoaded = true
-				return
+				this.apiContentLoaded = true;
+				return;
 			}
-			const id = this.resolvedTalk?.code || this.resolvedTalk?.id || this.talkId
+			const id =
+				this.resolvedTalk?.code || this.resolvedTalk?.id || this.talkId;
 			if (!id) {
-				this.apiContentLoaded = true
-				return
+				this.apiContentLoaded = true;
+				return;
 			}
 			try {
-				const url = `${this.computedApiBaseUrl}submissions/${id}/?expand=answers.question,resources`
-				const response = await fetch(url)
-				if (!response.ok) return
-				const data = await response.json()
-				this.fetchedApiContent = data
-				if (!this.talk && !this.scheduleData) this.fetchedSubmission = data
+				const url = `${this.computedApiBaseUrl}submissions/${id}/?expand=answers.question,resources`;
+				const response = await fetch(url);
+				if (!response.ok) return;
+				const data = await response.json();
+				this.fetchedApiContent = data;
+				if (!this.talk && !this.scheduleData) this.fetchedSubmission = data;
 			} catch {
 				// silently ignore network / auth errors
 			} finally {
-				this.apiContentLoaded = true
+				this.apiContentLoaded = true;
 			}
-		}
-	}
-}
+		},
+	},
+};
 </script>
 
 <style lang="stylus">
