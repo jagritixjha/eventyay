@@ -159,6 +159,7 @@ class BaseSettings(_BaseSettings):
     call_for_speaker_login_button_label: str = 'default'
     # Set to 1 to enable Vite dev servers with HMR for live frontend development.
     npm_dev: bool = False
+    fetch_ecb_rates: bool = True
 
     @classmethod
     def settings_customise_sources(
@@ -254,6 +255,7 @@ conf = BaseSettings()
 DEBUG = conf.debug
 SECRET_KEY = conf.secret_key
 DATABASE_REPLICA = 'default'
+FETCH_ECB_RATES = conf.fetch_ecb_rates
 
 DATA_DIR = BASE_DIR / 'data'
 LOG_DIR = DATA_DIR / 'logs'
@@ -441,10 +443,12 @@ _LIBRARY_MIDDLEWARES = (
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.locale.LocaleMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'eventyay.base.middleware.LoadSheddingMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'eventyay.middleware.block_404.Block404Middleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'allauth.account.middleware.AccountMiddleware',
@@ -455,6 +459,7 @@ if DEBUG and importlib.util.find_spec('debug_toolbar'):
 
 _OURS_MIDDLEWARES = (
     'eventyay.base.middleware.CustomCommonMiddleware',
+    'eventyay.base.middleware.GloballyDisabledPluginMiddleware',
     'eventyay.common.middleware.SessionMiddleware',  # Add session handling
     'eventyay.common.middleware.MultiDomainMiddleware',  # Check which host is used and if it is valid
     'eventyay.common.middleware.EventPermissionMiddleware',  # Sets locales, request.event, available events, etc.
@@ -1009,11 +1014,30 @@ _LANGUAGES_CONFIG = {
 }
 
 # Derive legacy variables from _LANGUAGES_CONFIG for backward compatibility
-ALL_LANGUAGES = [(code, info['name']) for code, info in _LANGUAGES_CONFIG.items()]
+def _build_all_languages():
+    result = []
+    for code, info in _LANGUAGES_CONFIG.items():
+        natural_name = info.get('natural_name', '')
+        name_obj = info['name']
+        english_name = name_obj._args[0] if hasattr(name_obj, '_args') and name_obj._args else natural_name
+        if natural_name.strip().casefold() == english_name.strip().casefold():
+            label = natural_name
+        else:
+            label = f'\u200e{natural_name} ({english_name})'
+        result.append((code, label))
+    return result
+
+
+ALL_LANGUAGES = _build_all_languages()
 
 LANGUAGES_OFFICIAL = {code for code, info in _LANGUAGES_CONFIG.items() if info.get('official', False)}
 LANGUAGES_INCUBATING = {code for code, info in _LANGUAGES_CONFIG.items() if info.get('incubating', False)}
 LANGUAGES_RTL = {code for code, info in _LANGUAGES_CONFIG.items() if info.get('bidi', False)}
+
+# Override Django's LANGUAGES_BIDI so i18n form inputs always render dir="ltr".
+# This keeps placeholders left-aligned for RTL languages while browsers still
+# auto-detect RTL characters for typed content (Unicode bidi algorithm handles it).
+LANGUAGES_BIDI = []
 
 # TODO: Convert to tuple (some code still assumes LANGUAGES to be a list)
 LANGUAGES = (
@@ -1115,6 +1139,14 @@ CELERY_WORKER_REDIRECT_STDOUTS = False
 CELERY_TASK_ROUTES = {
     'eventyay.base.services.notifications.*': {'queue': 'notifications'},
     'eventyay.api.webhooks.*': {'queue': 'notifications'},
+    'eventyay.plugins.badges.tasks.*': {'queue': 'longrunning'},
+    'eventyay.base.services.export.*': {'queue': 'longrunning'},
+    'eventyay.base.services.orderimport.*': {'queue': 'longrunning'},
+    'eventyay.features.importers.tasks.*': {'queue': 'longrunning'},
+    'eventyay.base.services.tickets.generate': {'queue': 'longrunning'},
+    'eventyay.base.services.tickets.invalidate_cache': {'queue': 'longrunning'},
+    # Registered name in eventyay.agenda.tasks (legacy pretalx namespace).
+    'pretalx.agenda.export_schedule_html': {'queue': 'longrunning'},
 }
 
 # The folder where static files are collected to. It is shared with Nginx.
@@ -1364,6 +1396,17 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_RENDERER_CLASSES': ('rest_framework.renderers.JSONRenderer',),
     'UNICODE_JSON': False,
+    # User throttle is global (keyed by user/token, NAT-safe). Anonymous IP throttling
+    # is opt-in on high-traffic public endpoints only (streams, schedule).
+    'DEFAULT_THROTTLE_CLASSES': [
+        'eventyay.api.throttles.EventyayUserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '60/minute',
+        'user': '300/minute',
+        'public_stream': '10/minute',
+        'public_schedule': '30/minute',
+    },
 }
 
 SPECTACULAR_SETTINGS = {
@@ -1467,10 +1510,14 @@ EVENTYAY_ENVIRONMENT = os.getenv('EVENTYAY_ENVIRONMENT', 'unknown')
 
 # Sentry configuration
 SENTRY_DSN = conf.sentry_dsn
+SENTRY_ENABLED = bool(SENTRY_DSN)
 if SENTRY_DSN:
     import sentry_sdk
     from sentry_sdk.integrations.celery import CeleryIntegration
     from sentry_sdk.integrations.django import DjangoIntegration
+
+    from django.core.exceptions import PermissionDenied
+    from django.http import Http404
 
     sentry_sdk.init(
         dsn=SENTRY_DSN,
@@ -1479,6 +1526,7 @@ if SENTRY_DSN:
         debug=DEBUG,
         release=EVENTYAY_COMMIT if EVENTYAY_COMMIT != 'unknown' else None,
         environment=active_environment.value,
+        ignore_errors=[Http404, PermissionDenied],
     )
 
 # Multifactor authentication configuration
