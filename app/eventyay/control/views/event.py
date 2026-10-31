@@ -1039,6 +1039,7 @@ class TicketSettingsPreview(EventPermissionRequiredMixin, View):
         ftype = fname.split('.')[-1]
         resp['Content-Disposition'] = f'inline; filename="ticket-preview.{ftype}"'
         resp.xframe_options_exempt = True
+        resp._csp_ignore = True
         return resp
 
     def get_error_url(self) -> str:
@@ -1836,20 +1837,7 @@ class QuickSetupView(FormView):
         if form.cleaned_data['ticket_download']:
             self.request.event.settings.ticket_download = True
             self.request.event.settings.ticketoutput_pdf__enabled = True
-
-            try:
-                import pretix_passbook  # noqa
-            except ImportError:
-                pass
-            else:
-                if 'eventyay_passbook' not in plugins_active:
-                    self.request.event.log_action(
-                        'eventyay.event.plugins.enabled',
-                        user=self.request.user,
-                        data={'plugin': 'eventyay_passbook'},
-                    )
-                    plugins_active.append('eventyay_passbook')
-                self.request.event.settings.ticketoutput_passbook__enabled = True
+            self.request.event.settings.ticketoutput_passbook__enabled = True
 
         else:
             self.request.event.settings.ticket_download = False

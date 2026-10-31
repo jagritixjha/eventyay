@@ -793,6 +793,7 @@ class GlobalTicketingSettingsForm(SettingsForm):
             'payment_paypal_connect_secret_key',
             'payment_paypal_connect_endpoint',
         ]
+        passbook_fields = []
         for r, response in sorted(responses, key=lambda r: str(r[0])):
             for key, value in response.items():
                 if key.startswith('payment_'):
@@ -800,6 +801,11 @@ class GlobalTicketingSettingsForm(SettingsForm):
                         self.fields[key] = value
                     if key not in payment_gateway_fields:
                         payment_gateway_fields.append(key)
+                elif key.startswith('passbook_'):
+                    if key not in self.fields:
+                        self.fields[key] = value
+                    if key not in passbook_fields:
+                        passbook_fields.append(key)
 
         # The PayPal section of the template renders the fields above explicitly, so any
         # further PayPal Connect setting registered by the plugin needs to be listed here
@@ -817,6 +823,8 @@ class GlobalTicketingSettingsForm(SettingsForm):
                 'max_products_per_order',
             ]),
         ]
+        if passbook_fields:
+            self.field_groups.append(('passbook', _('Apple Wallet / Passbook'), passbook_fields))
         self.initial['payment_paypal_connect_endpoint'] = paypal_connect_endpoint_choice(
             self.initial.get('payment_paypal_connect_endpoint')
             or self.obj.settings.get('payment_paypal_connect_endpoint')
